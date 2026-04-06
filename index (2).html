@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Enchanted Forest VR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.0/aframe.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; font-family:-apple-system,Arial,sans-serif; }
+#ui {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+  display:flex; gap:12px; z-index:100;
+}
+.btn {
+  padding:14px 28px; font-size:16px; font-weight:700;
+  border:none; border-radius:32px; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.play  { background:#3dba4e; color:#fff; }
+.pause { background:rgba(255,255,255,0.2); color:#fff; border:2px solid rgba(255,255,255,0.4); }
+#hint {
+  position:fixed; top:16px; left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,0.65); color:#fff;
+  padding:9px 22px; border-radius:22px; font-size:13px;
+  z-index:100; text-align:center; pointer-events:none;
+}
+#setup {
+  position:fixed; inset:0; background:rgba(0,0,0,0.92);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:200; color:#fff; padding:24px; gap:16px; text-align:center;
+}
+#setup h2 { font-size:20px; font-weight:700; }
+#setup p  { font-size:14px; color:rgba(255,255,255,0.7); max-width:340px; line-height:1.6; }
+#videoUrl {
+  width:100%; max-width:400px; padding:12px 16px;
+  font-size:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.3);
+  background:rgba(255,255,255,0.1); color:#fff; outline:none;
+}
+#videoUrl::placeholder { color:rgba(255,255,255,0.4); }
+#loadBtn {
+  padding:14px 36px; font-size:16px; font-weight:700;
+  background:#3dba4e; color:#fff; border:none; border-radius:32px; cursor:pointer;
+}
+#steps {
+  font-size:13px; color:rgba(255,255,255,0.6);
+  max-width:360px; line-height:1.8; text-align:left;
+}
+#steps b { color:rgba(255,255,255,0.9); }
+</style>
+</head>
+<body>
+
+<!-- Setup screen -->
+<div id="setup">
+  <h2>&#127795; Enchanted Forest VR</h2>
+  <p>Paste your Google Drive direct video link below to load your 360° forest video.</p>
+
+  <div id="steps">
+    <b>How to get your Google Drive link:</b><br>
+    1. Upload your 360° MP4 to Google Drive<br>
+    2. Right-click the file → <b>Share</b> → <b>Anyone with the link</b><br>
+    3. Copy the link — it looks like:<br>
+    <span style="color:#3dba4e;font-size:12px;">drive.google.com/file/d/FILE_ID/view</span><br>
+    4. Paste it below and tap Load
+  </div>
+
+  <input id="videoUrl" type="url" placeholder="Paste Google Drive link here..."/>
+  <button id="loadBtn" onclick="loadVideo()">Load 360° Video</button>
+  <p style="font-size:12px;color:rgba(255,255,255,0.4);">
+    Or try a sample: <span style="color:#3dba4e;cursor:pointer;" onclick="loadSample()">Load sample forest scene</span>
+  </p>
+</div>
+
+<!-- Hint & controls (shown after load) -->
+<div id="hint" style="display:none;">Put on your Quest → tap the VR icon bottom-right to go fully immersive</div>
+<div id="ui" style="display:none;">
+  <button class="btn play"  onclick="playVideo()">&#9654; Play</button>
+  <button class="btn pause" onclick="pauseVideo()">&#9646;&#9646; Pause</button>
+</div>
+
+<!-- A-Frame scene -->
+<a-scene
+  id="scene"
+  vr-mode-ui="enabled: true"
+  background="color: #000">
+
+  <a-assets>
+    <video
+      id="forest360"
+      loop="true"
+      crossorigin="anonymous"
+      playsinline
+      webkit-playsinline>
+    </video>
+  </a-assets>
+
+  <!-- 360 video sphere — video mapped to inside of sphere -->
+  <a-videosphere
+    id="sphere"
+    src="#forest360"
+    rotation="0 -90 0">
+  </a-videosphere>
+
+  <a-entity camera look-controls position="0 0 0"></a-entity>
+
+</a-scene>
+
+<script>
+var videoEl = document.getElementById('forest360');
+var loaded = false;
+
+function gdriveDirect(url) {
+  // Convert share URL to direct stream URL
+  var match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return 'https://drive.google.com/uc?export=download&id=' + match[1];
+  }
+  // Already a direct link or other format — use as-is
+  return url;
+}
+
+function loadVideo() {
+  var raw = document.getElementById('videoUrl').value.trim();
+  if (!raw) { alert('Please paste a Google Drive link first.'); return; }
+  var url = gdriveDirect(raw);
+  startScene(url);
+}
+
+function loadSample() {
+  // A freely licensed equirectangular forest sample
+  var url = 'https://cdn.aframe.io/360-video-boilerplate/video/city.mp4';
+  startScene(url);
+}
+
+function startScene(url) {
+  videoEl.src = url;
+  videoEl.load();
+
+  videoEl.addEventListener('canplay', function() {
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('hint').style.display = 'block';
+    document.getElementById('ui').style.display = 'flex';
+    videoEl.play();
+  }, { once: true });
+
+  videoEl.addEventListener('error', function() {
+    alert('Could not load video. Make sure your Google Drive file is set to "Anyone with the link can view" and try again.');
+  }, { once: true });
+
+  // Fallback show UI after 3s even if canplay doesn't fire
+  setTimeout(function() {
+    if (document.getElementById('setup').style.display !== 'none') {
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('hint').style.display = 'block';
+      document.getElementById('ui').style.display = 'flex';
+    }
+  }, 4000);
+}
+
+function playVideo()  { videoEl.play(); }
+function pauseVideo() { videoEl.pause(); }
+</script>
+</body>
+</html>
