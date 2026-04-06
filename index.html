@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>VR Forest Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script>
+    window.addEventListener('error', function(e) {
+      document.getElementById('loader').innerText = 'Error loading: ' + e.message;
+    });
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.0/aframe.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: sans-serif; }
+    #loader {
+      position: fixed; inset: 0;
+      background: #0a1628;
+      color: #fff;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 9999;
+      font-size: 18px;
+      gap: 16px;
+    }
+    #loader .dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #4caf50;
+      display: inline-block;
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse { from { opacity: 0.2; } to { opacity: 1; } }
+    #ui {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex;
+      gap: 12px;
+    }
+    .btn {
+      padding: 14px 28px;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+    }
+    .btn-grow { background: #4caf50; color: #fff; }
+    .btn-reset { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.4); }
+    #hint {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loader">
+  <span class="dot"></span>
+  <span>Loading forest...</span>
+</div>
+
+<div id="hint">Tap "Grow Forest" — then tap the VR icon for full immersion</div>
+
+<div id="ui">
+  <button class="btn btn-grow" onclick="growForest()">Grow Forest</button>
+  <button class="btn btn-reset" onclick="resetForest()">Reset</button>
+</div>
+
+<a-scene
+  id="scene"
+  background="color: #0a1628"
+  fog="type: exponential; color: #0a1628; density: 0.03"
+  renderer="antialias: true; colorManagement: true"
+  vr-mode-ui="enabled: true">
+
+  <a-sky color="#0a1628"></a-sky>
+
+  <a-plane
+    position="0 0 0"
+    rotation="-90 0 0"
+    width="80" height="80"
+    color="#162916"
+    roughness="1">
+  </a-plane>
+
+  <a-entity id="forest"></a-entity>
+  <a-entity id="leaves"></a-entity>
+  <a-entity id="stars"></a-entity>
+
+  <a-entity light="type: ambient; color: #b0d4c8; intensity: 0.7"></a-entity>
+  <a-entity light="type: directional; color: #fffde7; intensity: 1.0" position="2 4 1"></a-entity>
+  <a-entity light="type: point; color: #66bb6a; intensity: 0.8; distance: 25" position="0 3 -5"></a-entity>
+
+  <a-entity
+    camera
+    look-controls="pointerLockEnabled: false"
+    wasd-controls
+    position="0 1.6 9">
+    <a-entity
+      cursor="fuse: false"
+      geometry="primitive: ring; radiusInner: 0.018; radiusOuter: 0.026"
+      material="color: white; shader: flat; opacity: 0.8"
+      position="0 0 -1.5">
+    </a-entity>
+  </a-entity>
+
+</a-scene>
+
+<script>
+  var sceneEl = document.getElementById('scene');
+
+  sceneEl.addEventListener('loaded', function () {
+    document.getElementById('loader').style.display = 'none';
+    buildStars();
+  });
+
+  setTimeout(function() {
+    document.getElementById('loader').style.display = 'none';
+  }, 4000);
+
+  var trees = [
+    { x:  0,   z: -4,  delay: 0,    th: 3.5, tr: 0.18, cr: 2.2, cy: 4.3, col: '#33a133' },
+    { x: -4,   z: -5,  delay: 700,  th: 2.8, tr: 0.14, cr: 1.8, cy: 3.6, col: '#2d8c2d' },
+    { x:  4,   z: -5,  delay: 1300, th: 3.0, tr: 0.15, cr: 1.9, cy: 3.8, col: '#3db33d' },
+    { x: -7,   z: -4,  delay: 1900, th: 2.4, tr: 0.12, cr: 1.6, cy: 3.2, col: '#267326' },
+    { x:  7,   z: -4,  delay: 2500, th: 2.6, tr: 0.13, cr: 1.7, cy: 3.4, col: '#1e661e' },
+    { x: -2,   z: -9,  delay: 3100, th: 4.0, tr: 0.20, cr: 2.5, cy: 5.1, col: '#44bb44' },
+    { x:  3,   z: -10, delay: 3700, th: 3.2, tr: 0.16, cr: 2.0, cy: 4.1, col: '#2e992e' },
+    { x: -9,   z: -7,  delay: 4300, th: 2.2, tr: 0.11, cr: 1.5, cy: 2.9, col: '#228822' },
+    { x:  9,   z: -6,  delay: 4900, th: 2.9, tr: 0.14, cr: 1.85,cy: 3.7, col: '#338833' },
+    { x:  1,   z: -13, delay: 5500, th: 4.5, tr: 0.22, cr: 2.8, cy: 5.7, col: '#55cc55' },
+  ];
+
+  function makeEl(tag, attrs) {
+    var el = document.createElement(tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function animGrow(el, delay) {
+    el.setAttribute('scale', '0.001 0.001 0.001');
+    setTimeout(function() {
+      el.setAttribute('animation', 'property: scale; from: 0.001 0.001 0.001; to: 1 1 1; dur: 2000; easing: easeOutElastic');
+    }, delay);
+  }
+
+  function growForest() {
+    var forest = document.getElementById('forest');
+    forest.innerHTML = '';
+
+    trees.forEach(function(t) {
+      var group = document.createElement('a-entity');
+      group.setAttribute('position', t.x + ' 0 ' + t.z);
+
+      var trunk = makeEl('a-cylinder', {
+        radius: t.tr,
+        height: t.th,
+        position: '0 ' + (t.th / 2) + ' 0',
+        color: '#6b4226',
+        roughness: '0.95',
+        metalness: '0'
+      });
+
+      var canopy = makeEl('a-sphere', {
+        radius: t.cr,
+        position: '0 ' + t.cy + ' 0',
+        color: t.col,
+        roughness: '1',
+        metalness: '0',
+        'segments-width': '10',
+        'segments-height': '8'
+      });
+
+      var canopy2 = makeEl('a-sphere', {
+        radius: t.cr * 0.65,
+        position: (t.cr * 0.45) + ' ' + (t.cy + t.cr * 0.5) + ' 0',
+        color: t.col,
+        roughness: '1',
+        metalness: '0',
+        'segments-width': '8',
+        'segments-height': '6'
+      });
+
+      var canopy3 = makeEl('a-sphere', {
+        radius: t.cr * 0.55,
+        position: (-t.cr * 0.35) + ' ' + (t.cy + t.cr * 0.6) + ' ' + (t.cr * 0.3),
+        color: t.col,
+        roughness: '1',
+        metalness: '0',
+        'segments-width': '8',
+        'segments-height': '6'
+      });
+
+      group.appendChild(trunk);
+      group.appendChild(canopy);
+      group.appendChild(canopy2);
+      group.appendChild(canopy3);
+      forest.appendChild(group);
+
+      animGrow(trunk,   t.delay);
+      animGrow(canopy,  t.delay + 350);
+      animGrow(canopy2, t.delay + 600);
+      animGrow(canopy3, t.delay + 750);
+
+      (function(c, c2) {
+        setTimeout(function() {
+          c.setAttribute('animation__sway',
+            'property: rotation; from: 0 0 -2; to: 0 0 2; dur: ' +
+            (2800 + Math.random() * 800) +
+            '; dir: alternate; loop: true; easing: easeInOutSine');
+          c2.setAttribute('animation__sway',
+            'property: rotation; from: 0 0 2; to: 0 0 -2; dur: ' +
+            (2400 + Math.random() * 800) +
+            '; dir: alternate; loop: true; easing: easeInOutSine');
+        }, t.delay + 2500);
+      })(canopy, canopy2);
+    });
+
+    spawnLeaves();
+    document.getElementById('hint').innerText = 'Trees growing! Tap the VR headset icon to enter full immersion.';
+  }
+
+  function spawnLeaves() {
+    var container = document.getElementById('leaves');
+    container.innerHTML = '';
+    var colors = ['#33a133','#55cc55','#f5a623','#e8841a','#ffcc44','#2d8c2d'];
+    for (var i = 0; i < 50; i++) {
+      var lf = document.createElement('a-plane');
+      var x = (Math.random() - 0.5) * 22;
+      var startY = Math.random() * 7 + 2;
+      var z = -(Math.random() * 13 + 1);
+      var size = 0.1 + Math.random() * 0.15;
+      var dur = 5000 + Math.random() * 5000;
+      var delay = Math.random() * 6000;
+      lf.setAttribute('width', size);
+      lf.setAttribute('height', size);
+      lf.setAttribute('color', colors[Math.floor(Math.random() * colors.length)]);
+      lf.setAttribute('roughness', '1');
+      lf.setAttribute('side', 'double');
+      lf.setAttribute('position', x + ' ' + startY + ' ' + z);
+      lf.setAttribute('animation__fall',
+        'property: position; from: ' + x + ' ' + startY + ' ' + z +
+        '; to: ' + (x + (Math.random()-0.5)*3) + ' -0.2 ' + z +
+        '; dur: ' + dur + '; delay: ' + delay + '; easing: linear; loop: true');
+      lf.setAttribute('animation__spin',
+        'property: rotation; from: 0 0 0; to: ' +
+        Math.floor(Math.random()*360) + ' ' +
+        Math.floor(Math.random()*360) + ' ' +
+        Math.floor(Math.random()*360) +
+        '; dur: ' + Math.floor(dur * 0.7) + '; delay: ' + delay + '; loop: true; easing: linear');
+      container.appendChild(lf);
+    }
+  }
+
+  function resetForest() {
+    document.getElementById('forest').innerHTML = '';
+    document.getElementById('leaves').innerHTML = '';
+    document.getElementById('hint').innerText = 'Tap "Grow Forest" to plant your trees!';
+  }
+
+  function buildStars() {
+    var stars = document.getElementById('stars');
+    for (var i = 0; i < 150; i++) {
+      var s = document.createElement('a-sphere');
+      var theta = Math.random() * Math.PI * 2;
+      var phi = Math.random() * Math.PI * 0.5;
+      var r = 45;
+      s.setAttribute('position',
+        (r * Math.sin(phi) * Math.cos(theta)) + ' ' +
+        (r * Math.cos(phi) + 8) + ' ' +
+        (r * Math.sin(phi) * Math.sin(theta)));
+      s.setAttribute('radius', 0.05 + Math.random() * 0.12);
+      s.setAttribute('color', '#ffffff');
+      s.setAttribute('shader', 'flat');
+      stars.appendChild(s);
+    }
+  }
+</script>
+</body>
+</html>
